@@ -23,16 +23,13 @@ fn is_safe_loop(levels: List(Int), increasing: Bool) -> Bool {
     [_] -> True
     [first, second, ..rest] -> {
       let diff = int.absolute_value(first - second)
-      case increasing {
+      case diff <= 3 && diff >= 1 {
+        False -> False
         True ->
-          case first < second && diff <= 3 && diff >= 1 {
-            True -> is_safe_loop([second, ..rest], increasing)
-            False -> False
-          }
-        False ->
-          case first > second && diff <= 3 && diff >= 1 {
-            True -> is_safe_loop([second, ..rest], increasing)
-            False -> False
+          case increasing, first < second {
+            True, True | False, False ->
+              is_safe_loop([second, ..rest], increasing)
+            _, _ -> False
           }
       }
     }
@@ -41,17 +38,15 @@ fn is_safe_loop(levels: List(Int), increasing: Bool) -> Bool {
 
 fn is_safe(levels: List(Int)) -> Bool {
   case levels {
+    [] -> True
+    [_] -> True
     [first, second, ..rest] -> {
       let diff = int.absolute_value(first - second)
-
-      case first < second, diff <= 3 && diff >= 1 {
-        _, False -> False
-        True, True -> is_safe_loop([second, ..rest], True)
-        False, True -> is_safe_loop([second, ..rest], False)
+      case diff <= 3 && diff >= 1 {
+        False -> False
+        True -> is_safe_loop([second, ..rest], first < second)
       }
     }
-    [_] -> True
-    [] -> True
   }
 }
 
@@ -86,14 +81,7 @@ fn remove_level(levels: List(Int), index: Int) -> List(Int) {
 }
 
 fn is_safe_tolerant(levels: List(Int)) -> Bool {
-  let normally_safe = is_safe(levels)
-
-  case normally_safe {
-    True -> True
-    False -> {
-      is_safe_tolerant_loop(levels, 0)
-    }
-  }
+  is_safe(levels) || is_safe_tolerant_loop(levels, 0)
 }
 
 pub fn part1(input: List(String)) -> Int {
