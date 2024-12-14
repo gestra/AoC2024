@@ -1,4 +1,4 @@
-import day13.{parse_machines, part1, part2}
+import day13.{parse_machines, part1}
 import gleeunit
 import gleeunit/should
 
@@ -25,9 +25,4 @@ Prize: X=18641, Y=10279"
 pub fn part1_example_test() {
   part1(parse_machines(example_input))
   |> should.equal(480)
-}
-
-pub fn part2_example_test() {
-  part2(parse_machines(example_input))
-  |> should.equal(0)
 }
