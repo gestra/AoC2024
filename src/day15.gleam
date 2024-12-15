@@ -2,6 +2,7 @@ import gleam/int
 import gleam/io
 import gleam/list
 import gleam/option.{type Option, None, Some}
+import gleam/result
 import gleam/set
 import gleam/string
 import utils
@@ -56,10 +57,6 @@ pub fn part1(warehouse: Warehouse, moves: List(Direction)) -> Int {
 
 pub fn part2(warehouse: Warehouse, moves: List(Direction)) -> Int {
   let new_wh = modify_map(warehouse)
-  //io.println(print_warehouse_wide(new_wh, 0, ""))
-  //let moved = move_robot_wide(new_wh, Left)
-
-  //io.println(print_warehouse_wide(moved, 0, ""))
   let res = execute_movements_wide(new_wh, moves)
   sum_box_coordinates_wide(set.to_list(res.boxes), 0)
 }
@@ -159,17 +156,15 @@ fn slide_boxes(
     True -> Error(Nil)
     False ->
       case set.contains(warehouse.boxes, next_pos) {
-        True ->
-          case slide_boxes(warehouse, next_pos, dir) {
-            Ok(wh) -> {
-              let new_boxes =
-                wh.boxes
-                |> set.delete(pos)
-                |> set.insert(next_pos)
-              Ok(Warehouse(..wh, boxes: new_boxes))
-            }
-            Error(_) -> Error(Nil)
-          }
+        True -> {
+          use wh <- result.try(slide_boxes(warehouse, next_pos, dir))
+          let new_boxes =
+            wh.boxes
+            |> set.delete(pos)
+            |> set.insert(next_pos)
+          Ok(Warehouse(..wh, boxes: new_boxes))
+        }
+
         False -> {
           let new_boxes =
             warehouse.boxes
@@ -253,74 +248,49 @@ fn slide_boxes_wide(
             wide_box_at_location(warehouse.boxes, target_poss.0),
             wide_box_at_location(warehouse.boxes, target_poss.1)
           {
-            Some(a), Some(b) if a == b ->
-              case slide_boxes_wide(warehouse, a, direction) {
-                Ok(w) -> {
-                  let new_boxes =
-                    w.boxes
-                    |> set.delete(box)
-                    |> set.insert(target_poss)
-                  Ok(
-                    WideWarehouse(
-                      ..w,
-                      robot: move(warehouse.robot, direction),
-                      boxes: new_boxes,
-                    ),
-                  )
-                }
-                Error(Nil) -> Error(Nil)
-              }
-            Some(a), Some(b) ->
-              case slide_boxes_wide(warehouse, a, direction) {
-                Ok(w1) ->
-                  case slide_boxes_wide(w1, b, direction) {
-                    Ok(w2) -> {
-                      let new_boxes =
-                        w2.boxes
-                        |> set.delete(box)
-                        |> set.insert(target_poss)
-                      Ok(
-                        WideWarehouse(
-                          ..w2,
-                          robot: move(warehouse.robot, direction),
-                          boxes: new_boxes,
-                        ),
-                      )
-                    }
-                    Error(_) -> Error(Nil)
-                  }
-                Error(_) -> Error(Nil)
-              }
-            Some(a), None | None, Some(a) ->
-              case slide_boxes_wide(warehouse, a, direction) {
-                Ok(w1) -> {
-                  let new_boxes =
-                    w1.boxes
-                    |> set.delete(box)
-                    |> set.insert(target_poss)
-                  Ok(
-                    WideWarehouse(
-                      ..w1,
-                      robot: move(warehouse.robot, direction),
-                      boxes: new_boxes,
-                    ),
-                  )
-                }
-                Error(Nil) -> Error(Nil)
-              }
-            None, None -> {
-              let new_boxes =
-                warehouse.boxes
-                |> set.delete(box)
-                |> set.insert(target_poss)
+            Some(a), Some(b) if a == b -> {
+              use w <- result.try(slide_boxes_wide(warehouse, a, direction))
               Ok(
                 WideWarehouse(
-                  ..warehouse,
-                  robot: move(warehouse.robot, direction),
-                  boxes: new_boxes,
+                  ..w,
+                  boxes: w.boxes
+                    |> set.delete(box)
+                    |> set.insert(target_poss),
                 ),
               )
             }
+            Some(a), Some(b) -> {
+              use w1 <- result.try(slide_boxes_wide(warehouse, a, direction))
+              use w2 <- result.try(slide_boxes_wide(w1, b, direction))
+              Ok(
+                WideWarehouse(
+                  ..w2,
+                  boxes: w2.boxes
+                    |> set.delete(box)
+                    |> set.insert(target_poss),
+                ),
+              )
+            }
+            Some(a), None | None, Some(a) -> {
+              use w <- result.try(slide_boxes_wide(warehouse, a, direction))
+              Ok(
+                WideWarehouse(
+                  ..w,
+                  boxes: w.boxes
+                    |> set.delete(box)
+                    |> set.insert(target_poss),
+                ),
+              )
+            }
+            None, None ->
+              Ok(
+                WideWarehouse(
+                  ..warehouse,
+                  boxes: warehouse.boxes
+                    |> set.delete(box)
+                    |> set.insert(target_poss),
+                ),
+              )
           }
         Left | Right -> {
           let to_check = case direction {
@@ -329,36 +299,26 @@ fn slide_boxes_wide(
             _ -> panic as "WTF"
           }
           case wide_box_at_location(warehouse.boxes, to_check) {
-            Some(b) ->
-              case slide_boxes_wide(warehouse, b, direction) {
-                Ok(w) -> {
-                  let new_boxes =
-                    w.boxes
-                    |> set.delete(box)
-                    |> set.insert(target_poss)
-                  Ok(
-                    WideWarehouse(
-                      ..w,
-                      robot: move(warehouse.robot, direction),
-                      boxes: new_boxes,
-                    ),
-                  )
-                }
-                Error(Nil) -> Error(Nil)
-              }
-            None -> {
-              let new_boxes =
-                warehouse.boxes
-                |> set.delete(box)
-                |> set.insert(target_poss)
+            Some(b) -> {
+              use w <- result.try(slide_boxes_wide(warehouse, b, direction))
               Ok(
                 WideWarehouse(
-                  ..warehouse,
-                  robot: move(warehouse.robot, direction),
-                  boxes: new_boxes,
+                  ..w,
+                  boxes: w.boxes
+                    |> set.delete(box)
+                    |> set.insert(target_poss),
                 ),
               )
             }
+            None ->
+              Ok(
+                WideWarehouse(
+                  ..warehouse,
+                  boxes: warehouse.boxes
+                    |> set.delete(box)
+                    |> set.insert(target_poss),
+                ),
+              )
           }
         }
       }
